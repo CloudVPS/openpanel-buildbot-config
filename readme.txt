@@ -79,8 +79,24 @@ Done.
 Creating Slaves
 ---------------
 
+
+
 Reloading master upon commit to buildbot-config repo
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+Everytime the master.cfg gets changed in the hg repository, we want the
+buildmaster to reload the buildbot master. 
+
+Events that take place are: 
+
+1. Create a cronjob that checks of their are any updated in the hg repository
+(hg pull)
+2. Have hooks in .hg/hgrc that trigger an 'hg update' whenever 'hg pull' finds a new revision
+3. Have a hook in .hg/hgrc that trigger a reload of buildbot master whenever
+'hg update' is triggered.
+
+
 
 On the buildmaster, have a local clone of the hg repository. 
 
@@ -97,7 +113,8 @@ Add a hook to /home/buildmaster/buildbot-config/.hg/hgrc
 default = http://hg.openpanel.com/buildbot-config
 
 [hooks]
-incoming = /home/buildmaster/buildbot-config/bin/reconfig-master
+incoming = hg update
+update = /home/buildmaster/buildbot-config/bin/reconfig-buildmaster
 ------------------------
 
 
