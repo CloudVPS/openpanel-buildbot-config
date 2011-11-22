@@ -1,0 +1,24 @@
+#!/bin/bash
+# To be run as an hg hook in /home/buildmaster/buildbot-config
+# Gives the buildbot master a reconfig after a commit in hg.
+
+
+BB_HOME="/home/buildmaster/buildbot"
+VIRTUAL_ENV="$BB_HOME/opt"
+
+. $VIRTUAL_ENV/bin/activate
+
+
+function bork() {
+    echo $1  | logger 
+    exit 1
+}
+if [[ -h $BB_HOME/master/master.cfg ]] ; then
+    cd $BB_HOME
+    buildbot reconfig master || bork "There's something wrong!"
+else
+    bork "[CRIT]: master.cfg is not a symlink." 
+fi
+
+exit 0
+
