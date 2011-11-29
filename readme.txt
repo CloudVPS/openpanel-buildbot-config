@@ -1,155 +1,244 @@
 
-
-TODO:
-----
-
-This still needs proper documenting: 
-* reprepro
-* slave requirements: 
-** hooks folder
+Buildbot
+========
+Author: Maarten Verwijs <hello@maartenverwijs.nl>
+rev1, Tue Nov 29 11:02:11 CET 2011
 
 
-Setup BuildMaster
------------------
+About this document
+------------------
+
+This document describes how to setup and maintain buildbot for OpenPanel.
+Buildbot is a framework that allows for the automation of fetching sourcecode,
+compiling it, packaging it and presenting feedback for the developers. 
+
+The goal is to provide a continuous integration platform for developers to
+increase developmentspeed and code quality. 
+
+The order of the document is as follows: 
+
+* Design Overview
+* Installation and Configuration
+* Daily Usage
+* Manipulation 
+
+It should also have: 
+
+* Details on all the buildsteps that are taken when doing a build.
+
+
+But it won't
+
+
+Design Overview
+---------------
+
+In essence, buildbot works as a master/slave setup. Like so: 
+
+image:design.png[Buildbot basics]
+
+The master tells the slaves what to buildsteps to step through and they pass
+the results (files, successes or failures) back to the master.
+
+Buildbot -like most of the continuous integration platforms available- makes
+the assumption that there are not a lot of different code repositories per
+project. 
+
+The fact that BuildBot is written in Python and therefor extensible makes up for
+this flaw, however. 
+
+However, the current design makes a 'factory' for every combination of the
+following:
+
+* Distribution
+* Distributionversion
+* Distribution Architecture (hardware)
+* Component
+ 
+Given the total number of those variables, our current BuildBot config is
+handling about 4300+ different factories. 
+
+This is not a Good Thing, IMHO, and should be addressed. 
+
+
+Installing and Configuring Buildbot
+-----------------------------------
+
+Unfortunatly, the official manual is not a good guide here. It makes quite a few assumptions
+that will bite. Please follow these steps instead. 
+
+There are two major components that are to be installed: 
+
+. Buildbot Master (aka buildmaster)
+. Buildbot Slave (aka buildslave)
+
+NOTE: The buildmaster should ab-so-lu-te-ly not be run as root, since some
+ components may silenly fail (Bad Thing).
+
+
+Buildmaster Install
+~~~~~~~~~~~~~~~~~~
 
 Install a stock Debian 6.0 machine.
 
 Add the following packages:
 
-[quote]
 ------------------------
-apt-get install python-dev build-essential python-virtualenv devscripts
+apt-get install python-dev build-essential python-virtualenv devscripts mercurial
 ------------------------
 
-Add a user to run buildbot processes as. Slaves should be able to run as root
-though. 
+Add a user to run buildbot processes as. 
 
-[quote]
+
 ------------------------
 adduser --system buildmaster
 ------------------------
 
 
-[quote]
 ------------------------
 su - buildmaster
+------------------------
+
+NOTE: From now on it is *crucial* to execute all commands on the buildmaster as
+user 'buildmaster'!
+
+
+------------------------
 mkdir buildbot && cd buildbot
 virtualenv --no-site-packages opt
 source opt/bin/activate
 ------------------------
 
 This should work:
-[quote]
+
 ------------------------
 easy_install buildbot==0.8.5
 ------------------------
 
+NOTE: It is crucial to specify the exact version, else easy_install (and pip)
+will install the 'latest and greatest'. Which could break compatibility with
+the current setup. 
+
 Be specific as to what version you are going to install. This is NOT reflected
 in the buildbot tutorial. 
 
-So: 
-[quote]
+Install the following dependencies if you want to enable a man-hole for easy
+debugging:
+
 ------------------------
 pip install pycrypto==2.4.1
 pip install pyasn1==0.0.13b      # <-- last known good.
 ------------------------
 
+Now create your master buildbot environment. 
 
-
-[quote]
 ------------------------
 cd ~/buildbot
 buildbot create-master master
 ------------------------
  
+Clone the buildbot-config Mercurial repository:
+
+------------------------
+hg clone http://hg.openpanel.com/buildbot-config
+------------------------
+
 Link the master.cfg from the local hg repo to master/master.cfg
-[quote]
+
 ------------------------
 ln -sf  /home/buildmaster/buildbot-config/master.cfg /home/buildmaster/buildbot/master/master.cfg
 buildbot start master
 ------------------------
 
-Done.
+In order to have the buildbot-master to survive a reboot, add this cronjob:
+
+------------------------
+@reboot . /home/buildmaster/buildbot/opt/bin/activate && cd buildbot && buildbot start master
+------------------------
 
 
+Auto-Reloading Master
+^^^^^^^^^^^^^^^^^^^^^
 
+Whenever we're going to update the HG-repo of the buildbot configs, we want to
+the changes to automatically be applied on the running buildbot-master. 
 
+This is done through the use of hg-hooks and cron. 
+
+First: ensure the hooks are in place inside the hgrc file
+(/home/buildmaster/buildbot-config/.hg/hgrc):
+
+------------------------
+[hooks]
+update = /home/buildmaster/buildbot-config/bin/reconfig-buildmaster
+incoming = hg update
+------------------------
+
+This will make sure that everytime there an +hg pull+ is done, it is followed
+by an +hg update+ to fetch the changes. 
+
+And everytime an +hg update+ is done, it is followed by a reconfigure of the
+buildmaster. 
+
+Now all we need to do is automate that a bit via cron. So add this cronjob:
+
+------------------------
+* * * * * cd /home/buildmaster/buildbot-config && hg pull  > /dev/null 2>&1
+------------------------
+
+We now have a running working BuildBot Master running on port 8010 and waiting
+for slaves to connect to it. 
 
 
 Creating Slaves
----------------
+~~~~~~~~~~~~~~~
 
+Creating slaves consists of the following steps:
 
+* Installing the buildbot-slave software on a machine ; 
+* Configuring a username/password on the slave ; 
+* Configuring that same username/password on the master.
 
-Reloading master upon commit to buildbot-config repo
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Installing Buildbot Slave:
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
+Foo is not bar.
 
-Everytime the master.cfg gets changed in the hg repository, we want the
-buildmaster to reload the buildbot master. 
+Setting Username/Password:
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Events that take place are: 
+Secret secret secret
 
-1. Create a cronjob that checks of their are any updated in the hg repository
-(hg pull)
-2. Have hooks in .hg/hgrc that trigger an 'hg update' whenever 'hg pull' finds a new revision
-3. Have a hook in .hg/hgrc that trigger a reload of buildbot master whenever
-'hg update' is triggered.
+Setting Username/Password in master.cfg:
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-
-
-On the buildmaster, have a local clone of the hg repository. 
-
-[quote]
-------------------------
-hg clone http://hg.openpanel.com/buildbot-config
-------------------------
-
-Add a hook to /home/buildmaster/buildbot-config/.hg/hgrc
-
-[quote]
-------------------------
-[paths]
-default = http://hg.openpanel.com/buildbot-config
-
-[hooks]
-incoming = hg update
-update = /home/buildmaster/buildbot-config/bin/reconfig-buildmaster
-------------------------
-
-
-* Set a cronjob to run hg pull && hg up regularly.
-
-
+Remember to reconfig the master.
 
 
 Enterprise Linux (RHEL, CentOS, ...)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 First we need to enable EPEL in order to install python-virtualenv.
-[quote]
+
 --------------
 su -c 'rpm -Uvh http://download.fedora.redhat.com/pub/epel/5/x86_64/epel-release-5-4.noarch.rpm'
 --------------
 
 And install python-virtualenv
-[quote]
+
 ----------------
 yum install python-virtualenv
 ----------------
 
-
 You will also need some/all of the development tools. 
 
-[quote]
 ----------------
 yum groupinstall 'Development Tools'
 ----------------
 
-Installing Buildbot
--------------------
 
-[quote]
+Create a place to install the buildbot-slave: 
+
 ---------------
 mkdir /opt/buildbot
 virtualenv --no-site-packages sandbox
@@ -157,25 +246,45 @@ source sandbox/bin/activate
 easy_install buildbot-slave==0.8.5
 ---------------
 
-Creating the slave:
-[quote]
+NOTE: Again: be specific in your versions.
+
+Now that we have the slave software installed, we can create a slave with it:
+
 ---------------
 cd sandbox/
 buildslave create-slave centos5 141.138.195.186 centos5-slave pass
 ---------------
 
+NOTE: If you wish to change the password later on, that is possible in the
+buildbot.tac file. 
+
 Starting the slave:
 
-[quote]
 ---------------
 source sandbox/bin/activate
 cd sandbox/
 buildslave start $VIRTUAL_ENV/centos5
 ---------------
 
+If you surf to buildmaster:8010/ you should see your slave connecting.
+
+
+BuildSteps
+----------
+
+The following is some detail on the actual buildsteps. More information can
+also be found in the comments of the +master.cfg+ file.
 
 Building RPM Packages:
----------------------
+~~~~~~~~~~~~~~~~~~~~~~
+
+Mock is not Pbuilder. But it is somewhat similar. A few differences of note: 
+
+* Mock has to be run as a non-privileged user that is part of the 'mock' group,
+  whereas pbuilder can simply be run as root. 
+* Mock cannot/willnot use tarballs. Instead, it uses a cache system with a
+  freshness parameter (default=15 days). 
+
 
 Requirements:
 * install mock
@@ -184,7 +293,7 @@ Requirements:
 
 Mock: 
 * yum -y install mock
-* make a tarball of hg checkou. Look in .spec file for what name .spec is
+* make a tarball of hg checkout. Look in .spec file for what name .spec is
   looking for (head $specfile | grep ^Name:)
 
 adduser -g buildslave mock
@@ -200,6 +309,256 @@ buildrpm --define "_sources /foo/bar"
 
 
 
+GPG Setup:
+~~~~~~~~~~
+
+We want our nightly built RPMs to be signed automatically with a development
+GPG key. 
+
+This brings some twists and glitches 
+
+* The buildmaster is to the signing of the RPM packages. However: the
+  buildmaster is a Debian machine. 
+* In order not to enter a passphrase everytime we sign an RPM, we need a
+  GPG agent. 
+* RPM does NOT support GPG agents. 
+* When executing shellcommands, Buildbot is not actually opening an interactive
+  shell. 
+
+
+First we're going to need GNUPG
+
+----------
+apt-get install gnupg
+---------
+
+We will also need rpm:
+
+-------
+apt-get install rpm
+-------
+
+Login as the user +buildmaster+. Do NOT use +su -+, but actually create a new
+session like logging in with ssh. 
+
+-----
+mkdir .gnupg
+-----
+
+Generate a key and give logical answers. Possibly consult this link:
+http://fedoranews.org/tchung/gpg/
+
+------
+gpg --gen-key
+-------
+
+
+Verify that the key generation works: 
+
+------
+gpg --list-keys
+------
+
+In order to make RPM aware of our key, we need to import the key into RPM. In
+order to do that, we must first 'export' our key from GPG. Like so: 
+
+-----
+ gpg --export -a 'Name Of Your Key' > RPM-GPG-KEY-yourname
+-----
+
+As root:
+
+-----
+ rpm --import RPM-GPG-KEY-yourname
+-----
+
+In uses a variable in a file called +rpmmacros+ to know which key to use when
+signing. Usually, this file is in the homedir of the user that does the
+signing. However, with buildbot I could not get this to work. To resolve this,
+I used another file. 
+
+As root:
+
+-----
+mkdir /etc/rpm
+
+cat > /etc/rpm/macros <<EOF
+%_signature gpg
+%_gpg_path ~/.gnupg
+%_gpg_name OpenPanel Development Key <dev@openpanel.com>
+EOF
+-----
+
+Now, in order to solve the biggest issue (passing the passphrase), we need to
+do some loopy hacking in order to stay somewhat secure. 
+
+As said before: we want to use a passphrase, with a GPG agnet, but RPM does not
+support this. When signing an .rpm, RPM will *always* ask for a passphrase.
+Thanks RedHat!
+
+Now, +expect+ can be used to feed the passphrase to +rpm+ when it asks for it.
+However, we do not want our passphrase plaintext in a file. So, we're going to
+do the following: 
+
+. Put our passphrase in a plaintext file. 
+. Encrypt that using our own Development key (and removing the unencrypted
+file, obviously).
+. Start up a GPG agent with a limited time-to-live.
+. Give our passphrase to the agent. 
+. Write a python script that will use the GPG agent to decrypt the file, read the passphrase, start rpm and pass the passphrase when requested by rpm. 
+
+
+So, place your passphrase in a file called: '~/.phrase' and encrypt it like so: 
+
+-----
+gpg -e ~/.phrase
+-----
+
+When prompted for the name of a key, reply:
+
+-----
+Dev
+-----
+
+... and hit enter. 
+
+Remove the unencrypted version of the file: 
+
+----
+rm .phrase
+----
+
+Test that you can decrypt the file:
+
+----
+gpg -d .phrase.gpg
+----
+
+This will ask you for the passphrase. After entering it, you should see the
+decrypted contents of the .phrase.gpg file (oddly enough, this is also your
+passphrase...).
+
+Now it gets complicated. We're now going to start a daemon that will cache the
+passphrase for a set timeperiod, so you (or buildbot) don't have to enter it
+every time gpg is called. 
+
+Install and start +keychain+
+
+-----
+apt-get install keychain
+keychain
+-----
+
+Keychain will start gpg-agent and place the details on how to connect to the
+agent in '~/.keychain'. Looking in that folder you should see something like
+this: 
+
+-----
+buildmaster@dev-openpanel2:~$ ls ~/.keychain
+dev-openpanel2.xlshosting.net-csh      dev-openpanel2.xlshosting.net-fish-gpg
+dev-openpanel2.xlshosting.net-csh-gpg  dev-openpanel2.xlshosting.net-sh
+dev-openpanel2.xlshosting.net-fish     dev-openpanel2.xlshosting.net-sh-gpg
+-----
+
+We're intested in the 'dev-openpanel2.xlshosting.net-sh-gpg' file. We're going
+to source it: 
+
+-----
+source dev-openpanel2.xlshosting.net-sh-gpg
+env | grep GPG  # <--- this should output something!
+-----
+
+Now, the next time you decrypt a file you will be asked for a passphrase. This
+time, gpg will hand the phrase to the agent. There it will be cached for as
+long as is defined in '~/.gnupg/gpg-agent.conf'. 
+
+So the second time you decrypt a file, the cached phrase will be used to
+decrypt. 
+
+To test, run a decrypt. Twice. 
+
+----
+gpg -d .phrase.gpg    # <--- enter your phrase
+gpg -d .phrase.gpg    # <--- no phrase needed to get entered!
+----
+
+So - we now have a fairly secure way to fetch our phrase. Simply connect to the
+gpg-agent and decrypt the +.phrase.gpg+ file. 
+
+We can use that to feed rpm using a python script!
+
+-----
+
+#!/usr/bin/env python
+# This is 'rpmsign.py'
+#
+# Ain't it fun?
+
+import pexpect
+import commands
+import sys
+import os
+import gnupg
+
+gpg = gnupg.GPG(use_agent=True)
+
+# Take the first argument given to this script and find rpm files there:
+pkgs = commands.getoutput('find %s -iname *.rpm | xargs' % sys.argv[1])
+pkgs = pkgs.split(' ')
+
+# keychain contains the location of our GPG_AGENT:
+keychain = "/home/buildmaster/.keychain/dev-openpanel2.xlshosting.net-sh-gpg"
+
+# Open keychain and read it
+f = open(keychain, 'r')
+gpg_agent = f.readline()
+
+# Only interested in the middle bit of that file:
+gpg_agent = gpg_agent.split("=")[1].split(';')[0]
+
+# Add the result to the environment:
+os.environ['GPG_AGENT_INFO'] = gpg_agent
+
+# Use gpg_agent to decrypt our passphrase:
+p = open('/home/buildmaster/.phrase.gpg', 'rb')      # opening the encrypted file...
+m = gpg.decrypt_file(p)    # decrypt and place in a Crypt object
+s=str(m)                   # Make that Crypt object a string 
+p = s.strip()              # Strip that string of any cruft
+
+# For every rpm we found, add our GPG sig using our retrieved passphrase.
+for pkg in pkgs:
+    child = pexpect.spawn("rpm --addsign %s" % pkg)
+    child.expect("Enter pass phrase: ")
+    child.sendline("%s\r" % p)
+    child.status
+
+-----
+
+NOTE: Don't test by su'ing to user buildmaster. This does not work. Instead, ssh into
+the machine as the user 'buildmaster'. 
+
+NOTE: It would be so much nicer if the python-code above were incorporated in
+master.cfg as special BuildStep!
+
+
+GPG Usage:
+~~~~~~~~~
+
+Steps to follow (very precisely)
+
+* Manipulate default-cache-ttl in $HOME/buildmaster/.gnupg/gpg-agent.conf to fit
+  your needs.
+* Kill all gpg agents with 'keychain --stop'. 
+* Start new gpg agents with 'keychain'. This will also create a file in
+ /home/buildmaster/.keychain that needs to be sourced.
+* Source the file. 
+* Decrypt an encrypted file so the gpg-agent can cache the passphrase. 
+
+
+
+// ----- end of RPM Signing
+
+
 What to do when...
 -----------------
 
@@ -210,7 +569,7 @@ If pypi.python.org is down, do this:
 
 Add this stanza to '~/.pydistutils.cfg':
 
-[quote]
+
 -----------------------------
 [easy_install]
 index_url = http://d.pypi.python.org/simple
@@ -234,3 +593,43 @@ External References
 * http://buildbot.net/buildbot/docs/0.8.1/full.html#BuildStep-URLs (search for 'Build Step Index')
 * http://hg.openpanel.com/autobuilder/file/da3c80144ff2/build.py
 * http://stolennotebook.com/anthony/2007/01/19/18/
+* http://backreference.org/2011/10/08/buildbot-in-5-minutes/
+* http://fedoranews.org/tchung/gpg/
+* https://www.redhat.com/archives/rpm-list/2002-August/msg00074.html - no batch  mode signing for you!
+* http://www.linux-archive.org/centos/463658-howto-batch-sign-rpm-packages.html
+
+# This is not the hard part.
+
+New tech: 
+
+pip/easy_install/virtualenv for python, and what that means.
+reprepro
+buildd
+hg
+
+Known tech:
+createrepo
+pbuilder
+
+TODO:
+----
+
+This still needs proper documenting: 
+
+* reprepro
+* slave requirements: 
+** hooks folder
+
+* post_build_request.py needs python-simplejson installed on centos5
+
+
+
+Known Issues: 
+------------
+
+a new repository should at least have a Packages.gz, as pbuilder does an
+apt-get update and expects it to work. There should be some non-failing
+
+
+
+
