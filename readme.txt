@@ -28,6 +28,9 @@ It should also have:
 
 * Details on all the buildsteps that are taken when doing a build.
 
+Finally: running this document through asciidoc will give a much more pleasant
+output. 
+
 Design Overview
 ---------------
 
@@ -35,7 +38,7 @@ In essence, buildbot works in a master/slave setup.
 
 Like so: 
 
-image:design.png[Buildbot basics]
+image:overview.png[Buildbot basics]
 
 The master tells the slaves what buildsteps to step through. They pass
 the results (files, successes or failures) back to the master.
@@ -201,7 +204,11 @@ the changes to automatically be applied on the running buildbot-master.
 
 This is done through the use of hg-hooks and cron. 
 
-First: ensure the hooks are in place inside the hgrc file
+It kinda looks like this: 
+
+image:buildbot_auto_reconfig.png[BuildBot Master Auto-reconfig]
+
+To set this up first ensure the hooks are in place inside the hgrc file
 (/home/buildmaster/buildbot-config/.hg/hgrc):
 
 ------------------------
@@ -226,9 +233,6 @@ We now have a running working BuildBot Master running on port 8010 and waiting
 for slaves to connect to it. 
 
 
-
-
-
 Creating Slaves
 ~~~~~~~~~~~~~~~
 
@@ -240,8 +244,8 @@ Creating slaves consists of the following steps:
 
 
 
-Enterprise Linux (RHEL, CentOS, ...)
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Enterprise Linux (RHEL, CentOS, ...) Specific 
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 First we need to enable EPEL in order to install python-virtualenv.
 
@@ -293,8 +297,8 @@ buildslave start $VIRTUAL_ENV/centos5
 
 If you surf to buildmaster:8010/ you should see your slave connecting.
 
-Debian
-~~~~~~
+Debian Specific
+^^^^^^^^^^^^^^^
 
 In order to build Debian packages (for both Debian and Ubuntu), we need to have
 a BuildSlave running on Debian. The BuildSlave will be using +pbuilder+ for the
@@ -314,6 +318,10 @@ prefers it. So we shall do that then.
 NOTE: The tarballed chroots that pbuilder uses all point their sources.list to
 the IP of the current buildbotmaster. Should that IP change, steps need to be
 taken to update those sources.lists.
+
+
+Generic Slave Installation Steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 
 Configuring Buildbot
@@ -418,6 +426,19 @@ order to do that, we must first 'export' our key from GPG. Like so:
 
 -----
  gpg --export -a 'Name Of Your Key' > RPM-GPG-KEY-yourname
+-----
+
+Make sure .gnupg/gpg.conf reads:
+
+----
+use-agent
+----
+
+And that .gnupg/gpg-agent.conf reads something like: 
+
+-----
+pinentry-program /usr/bin/pinentry
+default-cache-ttl 3600
 -----
 
 As root:
@@ -688,6 +709,58 @@ From: http://jacobian.org/writing/when-pypi-goes-down/
 Buildbot IRCbot will not connect
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Are you running the mster buildbot process as root? Don't
+
+RPM Packages are not getting signed!
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Log in as 'buildmaster'.
+
+Is the agent still running? 
+
+----- 
+ps aux | grep gpg-agent
+-----
+
+----
+. .keychian/*-sh-gpg
+----
+
+Try to decrypt the file .phrase.gpg:
+
+----
+gpg -d .phrase.gpg
+----
+
+If you get prompted for a passphrase, the TTL probably expired. 
+
+Still doesn't work?
+
+Get keychain to kill all agents:
+
+----
+keychain --stop
+----
+
+And restart keychain: 
+
+----
+keychain
+----
+
+Repeat: 
+
+----
+. .keychian/*-sh-gpg
+----
+
+Try to decrypt the file .phrase.gpg (again):
+
+----
+gpg -d .phrase.gpg
+----
+
+The gpg-agent should now have cached your creds for the time specified in the
++.gnupg/gpg-agent.conf+.
+
 
 External References 
 -----------------
