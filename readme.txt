@@ -1,7 +1,8 @@
 
 Buildbot
 ========
-Author: Maarten Verwijs <hello@maartenverwijs.nl>
+Author:  "Maarten Verwijs <contact@maartenverwijs.nl>"
+Revision: 
 rev1, Tue Nov 29 11:02:11 CET 2011
 
 
@@ -13,12 +14,13 @@ Buildbot is a framework that allows for the automation of fetching sourcecode,
 compiling it, packaging it and presenting feedback for the developers. 
 
 The goal is to provide a continuous integration platform for developers to
-increase developmentspeed and code quality. 
+increase the speed of development and quality of code. 
 
 The order of the document is as follows: 
 
 * Design Overview
-* Installation and Configuration
+* Installation 
+* Configuration
 * Daily Usage
 * Manipulation 
 
@@ -26,26 +28,24 @@ It should also have:
 
 * Details on all the buildsteps that are taken when doing a build.
 
-
-But it won't
-
-
 Design Overview
 ---------------
 
-In essence, buildbot works as a master/slave setup. Like so: 
+In essence, buildbot works in a master/slave setup. 
+
+Like so: 
 
 image:design.png[Buildbot basics]
 
-The master tells the slaves what to buildsteps to step through and they pass
+The master tells the slaves what buildsteps to step through. They pass
 the results (files, successes or failures) back to the master.
 
 Buildbot -like most of the continuous integration platforms available- makes
-the assumption that there are not a lot of different code repositories per
-project. 
+the assumption that there are only a few different code repositories per
+project. OpenPanel, however, has more than 70.
 
-The fact that BuildBot is written in Python and therefor extensible makes up for
-this flaw, however. 
+The fact that BuildBot is written in Python and therefor extensible makes it
+possible to manage this ammount.
 
 However, the current design makes a 'factory' for every combination of the
 following:
@@ -60,9 +60,40 @@ handling about 4300+ different factories.
 
 This is not a Good Thing, IMHO, and should be addressed. 
 
+Buildbot Terminology
+~~~~~~~~~~~~~~~~~~~~
 
-Installing and Configuring Buildbot
------------------------------------
+There are a couple of buildbot-specific terms that are useful to know. 
+
+* BuildMaster - This is the software you will interface with the most. It
+  handles the logic of the CIS.
+* BuildSlave - The worker-drone. There can be many slaves to a single
+  BuildMaster. 
+* VCS - Version Control System (E.g. Mercurial)
+* Change - A notification of a change in the sourcetree that requires action
+  from BuildBot. The manner by which the notification is done may vary. We use
+  ChangeHook.
+* ChangeHook - Triggers a Change by commiting a HTTP POST to BuildBot.
+* Scheduler - When triggered (internally or remotely), this will schedule a
+  build with a Builder. You will not find a reference to Schedulers in the
+  webinterface. 
+* Builder - Recieves a projectname from a Scheduler that needs to be built. 
+  Determines a BuildSlave and sends required BuildSteps to that BuildSlave.
+* BuildStep - Steps needed to complete a build (unpack, configure, make, make
+  install. The guts of the system)
+
+Other terms: 
+
+* Mock - Software used on RHEL-based distros to create .rpms in a chroot
+  environment.
+* Pbuilder - Sort of kind of same as +mock+, only for Debian (+derivatives).
+* reprepro - Creates a repository of .deb files to be used with APT.
+* createrepo - Creates a repository of .rpm files to be used with YUM. 
+* keychain - Enable re-usage of GPG agents between logins. 
+
+
+Installing BuildBot
+-------------------
 
 Unfortunatly, the official manual is not a good guide here. It makes quite a few assumptions
 that will bite. Please follow these steps instead. 
@@ -73,13 +104,13 @@ There are two major components that are to be installed:
 . Buildbot Slave (aka buildslave)
 
 NOTE: The buildmaster should ab-so-lu-te-ly not be run as root, since some
- components may silenly fail (Bad Thing).
+ components may fail silently (Bad Thing).
 
 
 Buildmaster Install
 ~~~~~~~~~~~~~~~~~~
 
-Install a stock Debian 6.0 machine.
+Install a stock Debian 6.0 AMD64 machine.
 
 Add the following packages:
 
@@ -94,6 +125,7 @@ Add a user to run buildbot processes as.
 adduser --system buildmaster
 ------------------------
 
+Switch to that user:
 
 ------------------------
 su - buildmaster
@@ -101,7 +133,6 @@ su - buildmaster
 
 NOTE: From now on it is *crucial* to execute all commands on the buildmaster as
 user 'buildmaster'!
-
 
 ------------------------
 mkdir buildbot && cd buildbot
@@ -116,11 +147,8 @@ easy_install buildbot==0.8.5
 ------------------------
 
 NOTE: It is crucial to specify the exact version, else easy_install (and pip)
-will install the 'latest and greatest'. Which could break compatibility with
-the current setup. 
-
-Be specific as to what version you are going to install. This is NOT reflected
-in the buildbot tutorial. 
+will install the 'latest and greatest'. Doing that could break compatibility with
+the current setup. This is not mentioned in the official manual.
 
 Install the following dependencies if you want to enable a man-hole for easy
 debugging:
@@ -147,15 +175,23 @@ Link the master.cfg from the local hg repo to master/master.cfg
 
 ------------------------
 ln -sf  /home/buildmaster/buildbot-config/master.cfg /home/buildmaster/buildbot/master/master.cfg
+------------------------
+
+And start the master: 
+
+------------------------
 buildbot start master
 ------------------------
+
+
+Start Master @reboot
+^^^^^^^^^^^^^^^^^^^^
 
 In order to have the buildbot-master to survive a reboot, add this cronjob:
 
 ------------------------
 @reboot . /home/buildmaster/buildbot/opt/bin/activate && cd buildbot && buildbot start master
 ------------------------
-
 
 Auto-Reloading Master
 ^^^^^^^^^^^^^^^^^^^^^
@@ -190,6 +226,9 @@ We now have a running working BuildBot Master running on port 8010 and waiting
 for slaves to connect to it. 
 
 
+
+
+
 Creating Slaves
 ~~~~~~~~~~~~~~~
 
@@ -199,20 +238,6 @@ Creating slaves consists of the following steps:
 * Configuring a username/password on the slave ; 
 * Configuring that same username/password on the master.
 
-Installing Buildbot Slave:
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Foo is not bar.
-
-Setting Username/Password:
-^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Secret secret secret
-
-Setting Username/Password in master.cfg:
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-Remember to reconfig the master.
 
 
 Enterprise Linux (RHEL, CentOS, ...)
@@ -268,6 +293,34 @@ buildslave start $VIRTUAL_ENV/centos5
 
 If you surf to buildmaster:8010/ you should see your slave connecting.
 
+Debian
+~~~~~~
+
+In order to build Debian packages (for both Debian and Ubuntu), we need to have
+a BuildSlave running on Debian. The BuildSlave will be using +pbuilder+ for the
+creation of .deb packages.
+
+
+Therefore install pbuilder: 
+
+-----
+apt-get install pbuilder
+-----
+
+The BuildSlave on Debian is perfectly able to run as root. In fact, pbuilder
+prefers it. So we shall do that then.
+
+
+NOTE: The tarballed chroots that pbuilder uses all point their sources.list to
+the IP of the current buildbotmaster. Should that IP change, steps need to be
+taken to update those sources.lists.
+
+
+Configuring Buildbot
+--------------------
+
+(FIXME)
+
 
 BuildSteps
 ----------
@@ -288,6 +341,8 @@ Mock is not Pbuilder. But it is somewhat similar. A few differences of note:
 
 Requirements:
 * install mock
+* pull the mock configuration files from
+ http://hg.openpanel.com/buildbot-config/mock
 * adduser mock
 * adduser buildslave to group mock
 
@@ -308,9 +363,8 @@ mock --buildsrpm --spec=rpm/opencore.spec
 buildrpm --define "_sources /foo/bar"
 
 
-
-GPG Setup:
-~~~~~~~~~~
+Signing RPM packages
+~~~~~~~~~~~~~~~~~~~~
 
 We want our nightly built RPMs to be signed automatically with a development
 GPG key. 
@@ -420,7 +474,7 @@ When prompted for the name of a key, reply:
 Dev
 -----
 
-... and hit enter. 
+and hit enter. 
 
 Remove the unencrypted version of the file: 
 
@@ -467,6 +521,14 @@ to source it:
 source dev-openpanel2.xlshosting.net-sh-gpg
 env | grep GPG  # <--- this should output something!
 -----
+
+
+The gpg-agent will remember the passphrase for some time. That time is the
+time-to-live of the passphrase. It is configured here:
+
+----
+$HOME/buildmaster/.gnupg/gpg-agent.conf
+----
 
 Now, the next time you decrypt a file you will be asked for a passphrase. This
 time, gpg will hand the phrase to the agent. There it will be cached for as
@@ -540,19 +602,65 @@ the machine as the user 'buildmaster'.
 NOTE: It would be so much nicer if the python-code above were incorporated in
 master.cfg as special BuildStep!
 
+As you can see in the script above, python imports a module called gnupg. We
+need to install that, as root, on system level. 
 
-GPG Usage:
-~~~~~~~~~
+I hate that as much as you do.
+
+So as root do:
+
+----
+pip install python-gnupg
+----
+
+
+
+BuildBot Usage 
+--------------
+
+Start a GPG Agent
+~~~~~~~~~~~~~~~~~
 
 Steps to follow (very precisely)
 
-* Manipulate default-cache-ttl in $HOME/buildmaster/.gnupg/gpg-agent.conf to fit
-  your needs.
 * Kill all gpg agents with 'keychain --stop'. 
 * Start new gpg agents with 'keychain'. This will also create a file in
  /home/buildmaster/.keychain that needs to be sourced.
 * Source the file. 
 * Decrypt an encrypted file so the gpg-agent can cache the passphrase. 
+
+
+Start BuildBot Master
+~~~~~~~~~~~~~~~~~~~~~
+
+This should have happened during boot time, but if it didn't:
+
+Switch to user +buildmaster+
+
+----
+su - buildmaster
+---- 
+
+change to the buildbot directory:
+
+----
+cd buildbot
+----
+
+Source the BuildBot virtualenv:
+
+----
+source opt/bin/activate
+----
+
+and run:
+
+----
+buildbot start master
+----
+
+This should start the master just fine. 
+
 
 
 
@@ -621,6 +729,7 @@ This still needs proper documenting:
 ** hooks folder
 
 * post_build_request.py needs python-simplejson installed on centos5
+* post_build_request.py: describe the why of this. (hg hook needs  buildbot installed on same machine as hg repo)
 
 
 
@@ -630,6 +739,15 @@ Known Issues:
 a new repository should at least have a Packages.gz, as pbuilder does an
 apt-get update and expects it to work. There should be some non-failing
 
+chown the repo. Mention umask!
 
+There is no way to have a use a Property that has been set during a BuildStep,
+other than as a Property. Sometimes I think it would be handy to use, e.g. the
+result of 'cat /etc/debian_version' to determine my next BuildStep. This is not
+possible.
 
+Order is important. In order for the latest version of opencore to work, it
+needs an installation of the latest version of libgrace. Therefor, libgrace
+needs to be installed, packaged, uploaded to apt/yum repo, etc.... Only then
+can opencore building start.
 
