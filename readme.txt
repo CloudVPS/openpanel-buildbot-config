@@ -1,6 +1,6 @@
 
-Buildbot
-========
+OpenPanel BuildBot Configuration
+================================
 Author:  "Maarten Verwijs <contact@maartenverwijs.nl>"
 Revision: 
 rev1, Tue Nov 29 11:02:11 CET 2011
@@ -10,33 +10,18 @@ About this document
 ------------------
 
 This document describes how to setup and maintain buildbot for OpenPanel.
-Buildbot is a framework that allows for the automation of fetching sourcecode,
-compiling it, packaging it and presenting feedback for the developers. 
 
-The goal is to provide a continuous integration platform for developers to
-increase the speed of development and quality of code. 
+Buildbot is a framework that allows for the automation of all steps required to
+build, test, package and release software. 
 
-The order of the document is as follows: 
+It's goal is to provide a continuous integration platform enabling developers to
+decrease time between releases and improve overal quality of code.
 
-* Design Overview
-* Installation 
-* Configuration
-* Daily Usage
-* Manipulation 
-
-It should also have: 
-
-* Details on all the buildsteps that are taken when doing a build.
-
-Finally: running this document through asciidoc will give a much more pleasant
-output. 
 
 Design Overview
 ---------------
 
-In essence, buildbot works in a master/slave setup. 
-
-Like so: 
+Buildbot works in a master/slave setup. 
 
 image:overview.png[Buildbot basics]
 
@@ -174,10 +159,10 @@ Clone the buildbot-config Mercurial repository:
 hg clone http://hg.openpanel.com/buildbot-config
 ------------------------
 
-Link the master.cfg from the local hg repo to master/master.cfg
+Link the master.cfg from the local hg copy to master/master.cfg:
 
 ------------------------
-ln -sf  /home/buildmaster/buildbot-config/master.cfg /home/buildmaster/buildbot/master/master.cfg
+ln -s /home/buildmaster/buildbot-config/master.cfg /home/buildmaster/buildbot/master/master.cfg
 ------------------------
 
 And start the master: 
@@ -233,6 +218,39 @@ We now have a running working BuildBot Master running on port 8010 and waiting
 for slaves to connect to it. 
 
 
+Extra Master Requirements
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Several of the BuildSteps are performed on the BuildMaster itself. Some of the
+se require extra software / configuration. 
+
+Debian Repository
++++++++++++++++++
+
+The newly created .deb packages will require a repository to be placed into.
+
+----
+mkdir /srv/repository
+----
+
+Make sure that +buildmaster+ and apache (www-data) can write to the repository: 
+
+----
+chown buildmaster:www-data -R /srv/repository
+----
+
+Install +reprepro+ to handle the creation of the APT repository:
+
+----
+apt-get install reprepro
+----
+
+Place the +hooks+ folder (found in HG:/buildbot_config/hooks) in
++/srv/repository/hooks+.
+
+When Debian packages get built by BuildBot, they will automatically 
+
+
 Creating Slaves
 ~~~~~~~~~~~~~~~
 
@@ -265,6 +283,79 @@ You will also need some/all of the development tools.
 yum groupinstall 'Development Tools'
 ----------------
 
+Installing Mock
++++++++++++++++
+
+Since our CentOS Slave is to build RPM packages, it needs the infrastructure to
+do that. 
+
+Mock is used to do that. It is somewhat similar to pbuilder, but there are
+differences.
+
+* Mock has to be run as a non-privileged user that is part of the 'mock' group,
+  whereas pbuilder can simply be run as root. 
+* Mock cannot/willnot use tarballs. Instead, it uses a cache system with a
+  freshness parameter (default=15 days). 
+
+Requirements:
+
+----
+yum install mock
+----
+
+* pull the mock configuration files from
+
+----
+ http://hg.openpanel.com/buildbot-config/mock
+----
+
+Add the user that mock will run as:
+
+----
+adduser buildslave
+----
+
+Make sure that user is in the correct group:
+
+-----
+ adduser buildslave to group mock
+-----
+
+Your buildslave should now be able to run mock processes. 
+
+
+Debian Specific
+^^^^^^^^^^^^^^^
+
+In order to build Debian packages (for both Debian and Ubuntu), we need to have
+a BuildSlave running on Debian. The BuildSlave will be using +pbuilder+ for the
+creation of .deb packages.
+
+Therefore install pbuilder: 
+
+-----
+apt-get install pbuilder
+-----
+
+When +pbuilder+ is run it -by default- does not do an +apt-get update+, which
+is annoying. This is solved by using a +hook+ to tell pbuilder to run the
+update. 
+
+Copy the +hook+ folder from hg:/buildbot_config/hook to +/srv/hook+. BuildBot's master.cfg is configured to
+use that folder when triggering pbuilder.
+
+The BuildSlave on Debian is perfectly able to run as root. In fact, pbuilder
+prefers it, so on Debian (unlike RHEL), we're going to run the Slave as root.
+
+NOTE: The tarballed chroots that pbuilder uses all point their sources.list to
+the IP of the current buildbotmaster. Should that IP change, steps need to be
+taken to update those sources.lists.
+
+Generic BuildSlave Install Steps
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Now that we've covered the Linux distro specific dependencies, we can continue
+with the generic steps needed to install the BuildBot Slave software.
 
 Create a place to install the buildbot-slave: 
 
@@ -297,38 +388,8 @@ buildslave start $VIRTUAL_ENV/centos5
 
 If you surf to buildmaster:8010/ you should see your slave connecting.
 
-Debian Specific
-^^^^^^^^^^^^^^^
-
-In order to build Debian packages (for both Debian and Ubuntu), we need to have
-a BuildSlave running on Debian. The BuildSlave will be using +pbuilder+ for the
-creation of .deb packages.
-
-
-Therefore install pbuilder: 
-
------
-apt-get install pbuilder
------
-
-The BuildSlave on Debian is perfectly able to run as root. In fact, pbuilder
-prefers it. So we shall do that then.
-
-
-NOTE: The tarballed chroots that pbuilder uses all point their sources.list to
-the IP of the current buildbotmaster. Should that IP change, steps need to be
-taken to update those sources.lists.
-
-
-Generic Slave Installation Steps
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-
-Configuring Buildbot
---------------------
-
-(FIXME)
-
+NOTE: Remember to run as the correct user depending on your distro
+(Debian=root, Centos=buildslave).
 
 BuildSteps
 ----------
@@ -336,43 +397,10 @@ BuildSteps
 The following is some detail on the actual buildsteps. More information can
 also be found in the comments of the +master.cfg+ file.
 
-Building RPM Packages:
-~~~~~~~~~~~~~~~~~~~~~~
-
-Mock is not Pbuilder. But it is somewhat similar. A few differences of note: 
-
-* Mock has to be run as a non-privileged user that is part of the 'mock' group,
-  whereas pbuilder can simply be run as root. 
-* Mock cannot/willnot use tarballs. Instead, it uses a cache system with a
-  freshness parameter (default=15 days). 
-
-
-Requirements:
-* install mock
-* pull the mock configuration files from
- http://hg.openpanel.com/buildbot-config/mock
-* adduser mock
-* adduser buildslave to group mock
-
-Mock: 
-* yum -y install mock
-* make a tarball of hg checkout. Look in .spec file for what name .spec is
-  looking for (head $specfile | grep ^Name:)
-
-adduser -g buildslave mock
-
-mock --clean
-mock --init
-hg clone http://hg.openpanel.com/grace
-rpmbuild -bs  rpm/libgrace.spec --define "_sourcedir `pwd`"
-
-mock --buildsrpm --spec=rpm/opencore.spec 
-
-buildrpm --define "_sources /foo/bar"
-
-
 Signing RPM packages
 ~~~~~~~~~~~~~~~~~~~~
+
+This buildstep is performed on the BuildMaster, not on a BuildSlave.
 
 We want our nightly built RPMs to be signed automatically with a development
 GPG key. 
@@ -575,7 +603,14 @@ We can use that to feed rpm using a python script!
 #!/usr/bin/env python
 # This is 'rpmsign.py'
 #
-# Ain't it fun?
+""" 
+ rpm packages can be signed with GPG keys. This process is flawed, however, in
+that it ignores gpg-agents. This script allows you to use a gpg-agent to
+decrypt a file containing the gpg-passphrase you need to feed to rpm in order
+to sign it. 
+
+ Ain't it fun?
+"""
 
 import pexpect
 import commands
@@ -641,6 +676,11 @@ BuildBot Usage
 
 Start a GPG Agent
 ~~~~~~~~~~~~~~~~~
+
+Before you can sign RPM packages, you need to make sure that the GPG agent is
+running and that the passphrase has been cached. 
+
+Read on! 
 
 Steps to follow (very precisely)
 
@@ -708,7 +748,7 @@ From: http://jacobian.org/writing/when-pypi-goes-down/
 
 Buildbot IRCbot will not connect
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Are you running the mster buildbot process as root? Don't
+Are you running the master buildbot process as root? Don't.
 
 RPM Packages are not getting signed!
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -721,7 +761,7 @@ ps aux | grep gpg-agent
 -----
 
 ----
-. .keychian/*-sh-gpg
+. .keychain/*-sh-gpg
 ----
 
 Try to decrypt the file .phrase.gpg:
@@ -749,7 +789,7 @@ keychain
 Repeat: 
 
 ----
-. .keychian/*-sh-gpg
+. .keychain/*-sh-gpg
 ----
 
 Try to decrypt the file .phrase.gpg (again):
@@ -779,42 +819,14 @@ External References
 * https://www.redhat.com/archives/rpm-list/2002-August/msg00074.html - no batch  mode signing for you!
 * http://www.linux-archive.org/centos/463658-howto-batch-sign-rpm-packages.html
 
-# This is not the hard part.
-
-New tech: 
-
-pip/easy_install/virtualenv for python, and what that means.
-reprepro
-buildd
-hg
-
-Known tech:
-createrepo
-pbuilder
-
-TODO:
-----
-
-This still needs proper documenting: 
-
-* reprepro
-* slave requirements: 
-** hooks folder
-
-* post_build_request.py needs python-simplejson installed on centos5
-* post_build_request.py: describe the why of this. (hg hook needs  buildbot installed on same machine as hg repo)
-
-
 
 Known Issues: 
 ------------
 
-a new repository should at least have a Packages.gz, as pbuilder does an
+* A new repository should at least have a Packages.gz, as pbuilder does an
 apt-get update and expects it to work. There should be some non-failing
 
-chown the repo. Mention umask!
-
-There is no way to have a use a Property that has been set during a BuildStep,
+* There is no way to have a use a Property that has been set during a BuildStep,
 other than as a Property. Sometimes I think it would be handy to use, e.g. the
 result of 'cat /etc/debian_version' to determine my next BuildStep. This is not
 possible.

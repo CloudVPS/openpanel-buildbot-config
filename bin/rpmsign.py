@@ -1,6 +1,14 @@
 #!/usr/bin/env python
 
-# Ain't it fun?
+""" 
+ rpm packages can be signed with GPG keys. This process is flawed, however, in
+that it ignores gpg-agents. This script allows you to use a gpg-agent to
+decrypt a file containing the gpg-passphrase you need to feed to rpm in order
+to sign it. 
+
+ Ain't it fun?
+"""
+
 
 import pexpect
 import commands
