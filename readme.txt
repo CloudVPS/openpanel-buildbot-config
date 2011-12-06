@@ -731,6 +731,9 @@ This should start the master just fine.
 What to do when...
 -----------------
 
+
+
+
 Pypi.python.org is down.
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -835,4 +838,21 @@ Order is important. In order for the latest version of opencore to work, it
 needs an installation of the latest version of libgrace. Therefor, libgrace
 needs to be installed, packaged, uploaded to apt/yum repo, etc.... Only then
 can opencore building start.
+
+* Sometimes a build will fail due to the fact that you just successfully did a
+  build. The result of the build is a package in the repository. When you do a
+  rebuild, you first need to remove the package from the repo, else the build
+  will fail. 
+
+
+As buildmaster on the BuildMaster server:
+
+----
+ # list matching packages:
+ reprepro -b /srv/repository/  listfilter squeeze "Package (% libgrace*)"
+
+ # remove matching packages:
+ reprepro -b /srv/repository/  removefilter squeeze "Package (% libgrace*)"
+----
+
 
