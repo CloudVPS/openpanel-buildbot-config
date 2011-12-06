@@ -181,7 +181,7 @@ parser.add_option("-H", "--host", dest='host', metavar="HOST",
             Defaults to %default
             """))
 parser.add_option("-u", "--urlpath", dest='urlpath', metavar="URLPATH",
-            default='/change_hook/base',
+            default='/change_hook/openpanel_hook',
             help=textwrap.dedent("""\
             Path portion of URL. Defaults to %default
             """))
@@ -193,10 +193,15 @@ parser.set_defaults(properties={})
 
 (options, args) = parser.parse_args()
 
+
+'''
+ Not in our house. 
+
 if options.repository is None:
     print "repository must be specified"
     parser.print_usage()
     os._exit(2)
+'''
 
 if options.project is None:
     print "project must be specified"

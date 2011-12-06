@@ -217,6 +217,30 @@ Now all we need to do is automate that a bit via cron. So add this cronjob:
 We now have a running working BuildBot Master running on port 8010 and waiting
 for slaves to connect to it. 
 
+Build Hooks
+^^^^^^^^^^^
+
+In order to be able to remotely trigger a build (from HG hooks, for example),
+buildbot can be enabled to handle this via POST requests. How these requests
+are handled can be configured through enabling hooks. 
+
+The default hook (+base+) assumes that one repository is used and requires a
+repository to be handed to the hook before the hook will trigger a build. Even
+worse: the repository overrides any other setting of the repository. This
+breaks the way we do things. 
+
+In order to remedy that, we removed the setting of the repository from +./opt/lib/python2.6/site-packages/buildbot-0.8.5-py2.6.egg/buildbot/status/web/hooks/base.py+ and renamed it +openpanel_hook.py+. 
+
+When installing a BuildMaster, the +openpanel_hook.py+ must be placed in
++$BUILDBOTHOME/buildbot-0.8.5-py2.6.egg/buildbot/status/web/hooks/+
+
++~/buildbot-config/bin/post_build_request.py+ was
+also changed to leave out the requirement for specifying a repository. 
+
+The +post_build_request.py+ can be used from the commandline or an HG-hook to
+trigger a build.
+
+
 
 Extra Master Requirements
 ^^^^^^^^^^^^^^^^^^^^^^^^^
