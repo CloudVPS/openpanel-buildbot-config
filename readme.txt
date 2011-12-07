@@ -217,8 +217,8 @@ Now all we need to do is automate that a bit via cron. So add this cronjob:
 We now have a running working BuildBot Master running on port 8010 and waiting
 for slaves to connect to it. 
 
-Build Hooks
-^^^^^^^^^^^
+Build Hooks (change_hook)
+^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In order to be able to remotely trigger a build (from HG hooks, for example),
 buildbot can be enabled to handle this via POST requests. How these requests
