@@ -851,7 +851,9 @@ Known Issues:
 ------------
 
 * A new repository should at least have a Packages.gz, as pbuilder does an
-apt-get update and expects it to work. There should be some non-failing
+apt-get update and expects it to work. Be sure to run 'reprepro -b
+/srv/repository export' when setting up your repository.
+
 
 * There is no way to have a use a Property that has been set during a BuildStep,
 other than as a Property. Sometimes I think it would be handy to use, e.g. the
