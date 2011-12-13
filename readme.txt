@@ -156,6 +156,7 @@ buildbot create-master master
 Clone the buildbot-config Mercurial repository:
 
 ------------------------
+cd ~/
 hg clone http://hg.openpanel.com/buildbot-config
 ------------------------
 
@@ -266,13 +267,22 @@ chown buildmaster:www-data -R /srv/repository
 Install +reprepro+ to handle the creation of the APT repository:
 
 ----
-apt-get install reprepro
+apt-get install reprepro gnupg-agent
 ----
 
 Place the +hooks+ folder (found in HG:/buildbot_config/hooks) in
 +/srv/repository/hooks+.
 
-When Debian packages get built by BuildBot, they will automatically 
+When Debian packages get built by BuildBot, they will automatically get
+triggered.
+
+
+FIXME: Add conf dir to hg.
+
+----
+reprepro -b /srv/repository export
+----
+
 
 
 Creating Slaves
