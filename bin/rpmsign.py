@@ -16,14 +16,18 @@ import sys
 import os
 import gnupg
 
+
+hostname = commands.getoutput('hostname -f')
+
 gpg = gnupg.GPG(use_agent=True)
+
 
 # Take the first argument given to this script and find rpm files there:
 pkgs = commands.getoutput('find %s -iname *.rpm | xargs' % sys.argv[1])
 pkgs = pkgs.split(' ')
 
 # keychain contains the location of our GPG_AGENT:
-keychain = "/home/buildmaster/.keychain/dev-openpanel2.xlshosting.net-sh-gpg"
+keychain = "/home/buildmaster/.keychain/%s-sh-gpg" %  hostname
 
 # Open keychain and read it
 f = open(keychain, 'r')
