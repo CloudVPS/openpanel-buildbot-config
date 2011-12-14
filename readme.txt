@@ -172,6 +172,38 @@ And start the master:
 buildbot start master
 ------------------------
 
+BuildMaster umask:
+^^^^^^^^^^^^^^^^^^
+
+The umask of the BuildMaster is clobbered by Twistd and set to 077. Very
+strict. I did not find a nice way to fix this other than to edit twistd's
+files.
+
+Edit this file:
+./lib/python2.6/site-packages/Twisted-11.1.0-py2.6-linux-x86_64.egg/twisted/scripts/_twistd_unix.py
+
+Look for lines like: 
+
+----
+if daemon and umask is None:
+            umask = 077
+----
+
+and alter it to: 
+
+----
+if daemon and umask is None:
+            umask = 022
+----
+
+You will have to restart the daemon in order for this change to take effect: 
+
+
+----
+buildbot stop  master
+buildbot start  master
+----
+
 
 Start Master @reboot
 ^^^^^^^^^^^^^^^^^^^^
