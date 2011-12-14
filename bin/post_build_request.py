@@ -223,8 +223,6 @@ else:
     response = conn.getresponse()
     data = response.read()
     exitCode=0
-    if response.status is not 200:
-        exitCode=1
     if options.verbosity >= 1:
         print response.status, response.reason
         if response.status is 200:
