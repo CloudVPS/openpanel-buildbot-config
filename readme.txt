@@ -104,6 +104,8 @@ Add the following packages:
 
 ------------------------
 apt-get install python-dev build-essential python-virtualenv devscripts mercurial
+# Also rpm stuff:
+apt-get install rpm elfutils rpm-i18n createrepo
 ------------------------
 
 Add a user to run buildbot processes as. 
@@ -491,7 +493,7 @@ apt-get install gnupg
 We will also need rpm:
 
 -------
-apt-get install rpm
+apt-get install rpm 
 -------
 
 Login as the user +buildmaster+. Do NOT use +su -+, but actually create a new
@@ -546,7 +548,7 @@ signing. Usually, this file is in the homedir of the user that does the
 signing. However, with buildbot I could not get this to work. To resolve this,
 I used another file. 
 
-As root:
+As user +buildslave+:
 
 -----
 mkdir /etc/rpm
