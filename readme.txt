@@ -35,7 +35,7 @@ project. OpenPanel, however, has more than 70.
 The fact that BuildBot is written in Python and therefor extensible makes it
 possible to manage this ammount.
 
-However, the current design makes a 'factory' for every combination of the
+However, the previous design made a 'factory' for every combination of the
 following:
 
 * Distribution
@@ -43,10 +43,9 @@ following:
 * Distribution Architecture (hardware)
 * Component
  
-Given the total number of those variables, our current BuildBot config is
-handling about 4300+ different factories. 
-
-This is not a Good Thing, IMHO, and should be addressed. 
+This left us with 4300+ factories. Instead, I opted for the creation of 1
+factory per distro_distroversion_architecture. Within these factories, all
+OpenPanel components are built for this architecture. 
 
 Buildbot Terminology
 ~~~~~~~~~~~~~~~~~~~~
@@ -147,6 +146,8 @@ debugging:
 pip install pycrypto==2.4.1
 pip install pyasn1==0.0.13b      # <-- last known good.
 ------------------------
+
+NOTE: There is a slight API change in pyasn1 > 0.0.13b that breaks Buildbot. 
 
 Now create your master buildbot environment. 
 
@@ -415,6 +416,12 @@ use that folder when triggering pbuilder.
 The BuildSlave on Debian is perfectly able to run as root. In fact, pbuilder
 prefers it, so on Debian (unlike RHEL), we're going to run the Slave as root.
 
+Since we use Mercurial, make sure it is installed as well: 
+
+-----
+apt-get install mercurial
+-----
+
 NOTE: The tarballed chroots that pbuilder uses all point their sources.list to
 the IP of the current buildbotmaster. Should that IP change, steps need to be
 taken to update those sources.lists.
@@ -459,11 +466,27 @@ If you surf to buildmaster:8010/ you should see your slave connecting.
 NOTE: Remember to run as the correct user depending on your distro
 (Debian=root, Centos=buildslave).
 
+
+Daily Usage
+-----------
+
+Nightly Builds
+~~~~~~~~~~~~~~
+
+Manual Builds
+~~~~~~~~~~~~~
+
+Release Builds
+~~~~~~~~~~~~~~
+
+
 BuildSteps
 ----------
 
 The following is some detail on the actual buildsteps. More information can
 also be found in the comments of the +master.cfg+ file.
+
+
 
 Signing RPM packages
 ~~~~~~~~~~~~~~~~~~~~
