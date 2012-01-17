@@ -1,25 +1,270 @@
 
-OpenPanel BuildBot Configuration
+OpenPanel BuildBot Documentation
 ================================
 Author:  "Maarten Verwijs <contact@maartenverwijs.nl>"
 Revision: 
-rev1, Tue Nov 29 11:02:11 CET 2011
+rev2, Mon Jan 16 12:03:02 CET 2012
 
 
-About this document
-------------------
+Useful Table of Information
+---------------------------
 
-This document describes how to setup and maintain buildbot for OpenPanel.
+[width="15%"]
+|=======
+|*Address* | *Node Type* | *Builds* | *Builds Using...* | *Runs As* | *Extra Groups* | *Comment*
+|141.138.195.13 | Master |- | - | buildmaster | - | -
+|141.138.195.13 | Slave | Debian/Ubuntu | - | root | - | Slave for testing and PostProcessing
+|141.138.195.186 | Slave | Debian/Ubuntu | pbuilder | root | - | -
+|141.138.195.185 | Slave | RHEL | mock | buildslave | mock | -
+|=======
 
-Buildbot is a framework that allows for the automation of all steps required to
-build, test, package and release software. 
+BuildBot is a master-slave setup. It has one master and three slaves. 
 
-It's goal is to provide a continuous integration platform enabling developers to
-decrease time between releases and improve overal quality of code.
+The following table tries to explain some of the differences between the master
+and slaves. 
+
+Nightly Builds end up here: 141.138.195.13/dev
+
+Release Builds end up here: 141.138.195.13/stable
+
+Daily Usage
+-----------
+
+Checking Nightly Builds
+~~~~~~~~~~~~~~~~~~~~~~~
+* Go to the consolde view of the webinterface of the buildmaster: http://141.138.195.13:8010/console
+* Check for any non-green bulbs. 
+* Randomly check any of the green (supergreen!) bulbs. Click through till you
+  reach the actual buildlog. 
+* Verify that the +Build Properties+ make sense. 
+* Check the +stdio+ of the most important buildstep (probably the step before the +uploading+  step).
+
+
+Starting a Manual Build
+~~~~~~~~~~~~~~~~~~~~~~~
+
+There are two ways of starting a manual build. One is through the webinterface.
+The other using the commandline (which actually triggers a build using the
+webinterface).
+
+
+Using the WebInterface
+^^^^^^^^^^^^^^^^^^^^^^
+
+* Go to the webinterface: http://141.138.195.13:8010/builders
+* Pick out the builder you wish to get built. Or select multiple (scroll down a
+  bit....)
+* Click on the builder. 
+* Click the _Force Build_ button.
+
+
+Using the CLI
+^^^^^^^^^^^^^
+* Log into the _buildmaster node_ as user _buildmaster_. 
+* Execute the following command: 
+
+----
+/home/buildmaster/buildbot-config/bin/post_build_request.py -u /change_hook/openpanel_hook --project BUILDERNAME
+----
+
+Where _BUILDERNAME_ is the name of the builder. Obviously.
+
+Cancelling (Stopping) a Build
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+NOTE: There are many reasons for cancelling a build. It's easy to do, but
+can also cause a lot of hurt. Use with caution. Better to simply let the build
+fail.
+
+That being said: In order to cancel a build, simply go to the build in the
+webinterface (http://141.138.195.13:8010/), find the build and press the
+_Cancel Build_ button. 
+
+Known issue: cancelling a .deb build will result cruft left behind in
+_/var/cache/pbuilder/build_. 
+
+Since that location is a tmpfs mounted partition, it will cause subsequent
+builds to fail due to insufficient diskspace. 
+
+When cancelling a .deb build, make sure you unmount all binded mounts and remove
+any content in _/var/cache/pbuilder/build_. 
+
+Be carefull that you do not remove any files that are in use by another
+buildprocess. 
+
+
+
+Doing A Release
+----------------
+
+A new release has the following properties: 
+
+* The resulting packages are signed.
+* The resulting packages are placed in the 'stable' repository (/srv/repository-stable). 
+* The versioning is more concise / shorter.
+
+In order to start building a release, all that is needed is to give the
+buildproperty 'release=true' to any builder. 
+
+This can be done in two ways: 
+
+. Webinterface
+. Commandline
+
+Furthermore, this can be done for a single builder or for the all builders at
+once. 
+
+NOTE: Before anything related to releasing, make sure that GPG and SSH agents
+work nicely by running _gpg-init.sh_ prior to _release.sh_. 
+
+
+Single Builder
+~~~~~~~~~~~~~
+
+For a single builder, use one of the following methods.
+
+
+Webinterface
+^^^^^^^^^^^^
+
+Webinterface: Surf to the webinterface and give the 'release' 'true'
+as a property name and value in the 'Force Build' form, e.g.:  
+
+ http://141.138.195.13:8010/builders/Apache2.module_ubuntu_10.04_amd64
+
+Commandline
+^^^^^^^^^^^^
+
+Alternatively, use the commandline. Like so:
+
+----
+ /home/buildmaster/buildbot-config/bin/post_build_request.py -u /change_hook/openpanel_hook -p '{"release": "true"}' --project coreval_debian_6_amd64
+----
+
+All Builders
+~~~~~~~~~~~~
+
+If a release build is needed for all available builders, there are two ways to
+go about that: 
+
+. Webinterface
+. Commandline
+
+Webinterface
+^^^^^^^^^^^^
+
+. Surf here: http://141.138.195.13:8010/builders
+. Scroll to the bottom
+. Fill in the _Force All Builds_ Form and hit the correct button. 
+
+
+Commandline
+^^^^^^^^^^^
+
+I've written a small script that uses the +post_build_request.py+ script to
+initiate a release build of all OpenPanel projects for all supported
+distributions. 
+
+Use it by logging into the buildbot master as _buildmaster_ and run:
+
+----
+ ~/buildbot-config/bin/release.sh
+----
+
+NOTE: There is a 5 second delay for every added build in order to make sure
+that buildbot builds in the correct order. 
+
+
+Managing BuildBot
+-----------------
+
+There are several tasks that may need to be performed on a daily or weekly
+basis. 
+
+NOTE: In order to perform actions on a buildbot system,  you need to login to
+the server using the correct user. This differs per system.  Please check the
+table above if you're not sure. 
+
+NOTE: In order to perform any action on a buildbot system, you need to have the
+correct ENV. Make sure that you source _buildbot/opt/bin/activate_ (Should be
+in the .bashrc of the user you logged into the machine as). 
+
+On the Buildbot Master:
+
+* Log into the master as +buildmaster+.
+* The BuildBot environment is automatically set in .bashrc
+* The GPG and SSH agents are automatically set in .bashrc
+
+On Debian/Ubuntu Slaves:
+
+Log into the slave as root and run:
+
+-----
+cd /opt/buildbot/sandbox
+source bin/activate
+----
+
+On RHEL Slaves: 
+
+Log into the slave as user _buildslave_ and run: 
+
+-----
+source bin/activate
+----
+
+
+Buildbot Slaves 
+~~~~~~~~~~~~~~~
+
+The Buildbot slaves are rather maintenance free.
+
+Starting / Stopping Builbot Slaves
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* Run: _buildslave start $SLAVENAME_ (e.g. _buildslave start debian6_amd64_)
+
+Or replace _start_ with _stop_ in order to stop it. 
+
+Buildbot Master
+~~~~~~~~~~~~~~~
+
+The most common tasks are: 
+
+* stop/start/restarting the buildmaster
+* testing a new master.cfg
+* Re-initializing GPG and SSH agents. 
+* Checking logfiles, configurations, diskspace
+
+Checking the sanity of a new configuration: 
+
+----
+ cd ~/buildbot && buildbot checkconfig master
+----
+
+This should yield the result:
+
+-----
+ Config file is good!
+-----
+
+
+BuildSlave upload their results into /tmp/incoming. There, they are processed
+by MasterShellCommands (see +master.cfg+). When no builds are running, the
+/tmp/incoming should not contain any .deb or .rpm files. So this command should
+yield no result: 
+
+ find /tmp/incoming -iname *.deb
+
+
+Installation and Setup
+----------------------
+
+This describes the actual setup and installation of the Buildbot environment
+for OpenPanel. 
 
 
 Design Overview
----------------
+~~~~~~~~~~~~~~~~
 
 Buildbot works in a master/slave setup. 
 
@@ -64,8 +309,9 @@ There are a couple of buildbot-specific terms that are useful to know.
 * Scheduler - When triggered (internally or remotely), this will schedule a
   build with a Builder. You will not find a reference to Schedulers in the
   webinterface. 
-* Builder - Recieves a projectname from a Scheduler that needs to be built. 
-  Determines a BuildSlave and sends required BuildSteps to that BuildSlave.
+* Builder - The worker drone. Recieves a projectname from a Scheduler that
+  needs to be built. Determines a BuildSlave and sends required BuildSteps to
+  that BuildSlave.
 * BuildStep - Steps needed to complete a build (unpack, configure, make, make
   install. The guts of the system)
 
@@ -80,7 +326,7 @@ Other terms:
 
 
 Installing BuildBot
--------------------
+~~~~~~~~~~~~~~~~~~~
 
 Unfortunatly, the official manual is not a good guide here. It makes quite a few assumptions
 that will bite. Please follow these steps instead. 
@@ -95,7 +341,7 @@ NOTE: The buildmaster should ab-so-lu-te-ly not be run as root, since some
 
 
 Buildmaster Install
-~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^
 
 Install a stock Debian 6.0 AMD64 machine.
 
@@ -103,8 +349,9 @@ Add the following packages:
 
 ------------------------
 apt-get install python-dev build-essential python-virtualenv devscripts mercurial
+apt-get build-dep python-mysqldb
 # Also rpm stuff:
-apt-get install rpm elfutils rpm-i18n createrepo
+apt-get install rpm elfutils rpm-i18n createrepo 
 ------------------------
 
 Add a user to run buildbot processes as. 
@@ -145,6 +392,7 @@ debugging:
 ------------------------
 pip install pycrypto==2.4.1
 pip install pyasn1==0.0.13b      # <-- last known good.
+pip install MySQL-python
 ------------------------
 
 NOTE: There is a slight API change in pyasn1 > 0.0.13b that breaks Buildbot. 
@@ -176,11 +424,14 @@ buildbot start master
 ------------------------
 
 BuildMaster umask:
-^^^^^^^^^^^^^^^^^^
+++++++++++++++++++
 
 The umask of the BuildMaster is clobbered by Twistd and set to 077. Very
 strict. I did not find a nice way to fix this other than to edit twistd's
-files.
+files. A bug was reported that would hopefully address the issue:
+
+http://trac.buildbot.net/ticket/2169
+
 
 Edit this file:
 ./lib/python2.6/site-packages/Twisted-11.1.0-py2.6-linux-x86_64.egg/twisted/scripts/_twistd_unix.py
@@ -308,11 +559,12 @@ apt-get install reprepro gnupg-agent
 Place the +hooks+ folder (found in HG:/buildbot_config/hooks) in
 +/srv/repository/hooks+.
 
-When Debian packages get built by BuildBot, they will automatically get
+When Debian packages get built by BuildBot, those hooks will automatically get
 triggered.
 
 
-FIXME: Add conf dir to hg.
+APT expects certain files to exist when connecting to a repository. Those files
+do not come into existense until this command is run: 
 
 ----
 reprepro -b /srv/repository export
@@ -467,31 +719,13 @@ NOTE: Remember to run as the correct user depending on your distro
 (Debian=root, Centos=buildslave).
 
 
-Daily Usage
------------
-
-Nightly Builds
-~~~~~~~~~~~~~~
-
-Manual Builds
-~~~~~~~~~~~~~
-
-Release Builds
-~~~~~~~~~~~~~~
-
-
-BuildSteps
-----------
-
-The following is some detail on the actual buildsteps. More information can
-also be found in the comments of the +master.cfg+ file.
-
-
-
 Signing RPM packages
-~~~~~~~~~~~~~~~~~~~~
+^^^^^^^^^^^^^^^^^^^^
 
-This buildstep is performed on the BuildMaster, not on a BuildSlave.
+We need to be able to sign packages (RPM + DEB) with a key, either with or
+without a passphrase. 
+
+NOTE: This is performed on the BuildMaster, not on a BuildSlave.
 
 We want our nightly built RPMs to be signed automatically with a development
 GPG key. 
@@ -557,7 +791,8 @@ And that .gnupg/gpg-agent.conf reads something like:
 
 -----
 pinentry-program /usr/bin/pinentry
-default-cache-ttl 3600
+default-cache-ttl 31449600
+max-cache-ttl 31449600
 -----
 
 As root:
@@ -586,8 +821,9 @@ EOF
 Now, in order to solve the biggest issue (passing the passphrase), we need to
 do some loopy hacking in order to stay somewhat secure. 
 
-As said before: we want to use a passphrase, with a GPG agnet, but RPM does not
+As said before: we want to use a passphrase, with a GPG agent, but RPM does not
 support this. When signing an .rpm, RPM will *always* ask for a passphrase.
+
 Thanks RedHat!
 
 Now, +expect+ can be used to feed the passphrase to +rpm+ when it asks for it.
@@ -771,8 +1007,6 @@ Start a GPG Agent
 Before you can sign RPM packages, you need to make sure that the GPG agent is
 running and that the passphrase has been cached. 
 
-Read on! 
-
 Steps to follow (very precisely)
 
 * Kill all gpg agents with 'keychain --stop'. 
@@ -780,6 +1014,14 @@ Steps to follow (very precisely)
  /home/buildmaster/.keychain that needs to be sourced.
 * Source the file. 
 * Decrypt an encrypted file so the gpg-agent can cache the passphrase. 
+
+You also need to add the ssh-key to the ssh-key-agent that was started by
+keychain. 
+
+----
+ssh-add .ssh/id_rsa
+----
+
 
 
 Start BuildBot Master
@@ -912,6 +1154,8 @@ External References
 * http://fedoranews.org/tchung/gpg/
 * https://www.redhat.com/archives/rpm-list/2002-August/msg00074.html - no batch  mode signing for you!
 * http://www.linux-archive.org/centos/463658-howto-batch-sign-rpm-packages.html
+* http://purplefloyd.wordpress.com/2009/02/05/signing-deb-packages/
+* http://how-to.linuxcareer.com/creating-a-package-repository-on-linux--fedora-and-debian
 
 
 Known Issues: 
