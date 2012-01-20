@@ -6,8 +6,21 @@ Revision:
 rev2, Mon Jan 16 12:03:02 CET 2012
 
 
+Overview of Useful Information
+--------------------------------
+
+The buildbot platform is quite a maze of twisted passages. All alike. I'll
+start of with some useful information that will help you on your way when using
+it. 
+
+
 Useful Table of Information
----------------------------
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+BuildBot is a master-slave setup. It has one master and three slaves. 
+
+The following table tries to explain some of the differences between the master
+and slaves. 
 
 [width="15%"]
 |=======
@@ -18,14 +31,31 @@ Useful Table of Information
 |141.138.195.185 | Slave | RHEL | mock | buildslave | mock | -
 |=======
 
-BuildBot is a master-slave setup. It has one master and three slaves. 
 
-The following table tries to explain some of the differences between the master
-and slaves. 
+Resulting Repositories:
+~~~~~~~~~~~~~~~~~~~~~~
 
-Nightly Builds end up here: 141.138.195.13/dev
+* Nightly Builds end up here: http://141.138.195.13/dev
+* Release Builds end up here: http://141.138.195.13/stable
 
-Release Builds end up here: 141.138.195.13/stable
+
+master.cfg
+~~~~~~~~~~
+
+The main configuration file is +master.cfg+.  This is a python-script that gets
+executed by python and results in the actual configuration files used by
+buildbot. 
+
+Location: 
+
+* Mercurial repository: http://hg.openpanel.com/buildbot-config 
+* Local clone on the BuildBot Master: $BUILDMASTER:/home/buildmaster/buildbot-config/master.cfg
+* File actually used by Buildbot Master process (symlink to hg): $BUILDMASTER:/home/buildmaster/buildbot/master/master.cfg
+
+The local mercurial repository is hooked so that any change to the commit to
+the repository will result in a reload of the Buildbot Master process bringing
+changes made to master.cfg in effect.
+
 
 Daily Usage
 -----------
@@ -130,7 +160,9 @@ Webinterface
 Webinterface: Surf to the webinterface and give the 'release' 'true'
 as a property name and value in the 'Force Build' form, e.g.:  
 
+----
  http://141.138.195.13:8010/builders/Apache2.module_ubuntu_10.04_amd64
+----
 
 Commandline
 ^^^^^^^^^^^^
@@ -161,9 +193,16 @@ Webinterface
 Commandline
 ^^^^^^^^^^^
 
+
 I've written a small script that uses the +post_build_request.py+ script to
 initiate a release build of all OpenPanel projects for all supported
 distributions. 
+
+NOTE: +release.sh+ has all the builds hardcoded. It does no checking of
+anything what-so-ever. It is ridiculous to call it a script, really. It's
+merely a loop. Do not run it without reading (and possibly adjusting it to
+taste). 
+
 
 Use it by logging into the buildbot master as _buildmaster_ and run:
 
@@ -173,6 +212,7 @@ Use it by logging into the buildbot master as _buildmaster_ and run:
 
 NOTE: There is a 5 second delay for every added build in order to make sure
 that buildbot builds in the correct order. 
+
 
 
 Managing BuildBot
